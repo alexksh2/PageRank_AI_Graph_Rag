@@ -1,0 +1,23 @@
+Table 6 — GraphRAG Retrieval Metrics
+============================================================
+  MRR                         :  1
+  Hit@1                       :  1
+  Hit@3                       :  1
+  Hit@5                       :  1
+  Hit@10                      :  1
+  Mean Hop Distance (top-10)  :  0.8
+  Personalisation Fidelity ρ  :  0.504176
+  Chain Coverage              :  0
+  Seed/Non-Seed Score Ratio   :  7.59362
+  Precision@1                 :  1
+  Precision@3                 :  0.666667
+  Precision@5                 :  0.8
+  Precision@10                :  0.7
+  Recall@1                    :  0.0769231
+  Recall@3                    :  0.153846
+  Recall@5                    :  0.307692
+  Recall@10                   :  0.538462
+  Mean Score Hop=0            :  0.17583
+  Mean Score Hop=1            :  0.0327698
+  Mean Score Hop=2            :  0.014208
+  Mean Score Hop=3            :  0.014192

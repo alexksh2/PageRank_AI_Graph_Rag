@@ -1,0 +1,12 @@
+Table 3 — Ranking Quality Metrics
+============================================================
+  Top-20 Overlap          :  0.9
+  Kendall τ               :  0.940778
+  Kendall p-value         :  0
+  Spearman ρ              :  0.99308
+  Spearman p-value        :  0
+  NDCG@20                 :  0.990458
+  Precision@20            :  N/A
+  Recall@20               :  N/A
+  MRR                     :  N/A
+  Mean Rank Displacement  :  1.75

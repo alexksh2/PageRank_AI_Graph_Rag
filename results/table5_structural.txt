@@ -1,0 +1,14 @@
+Table 5 — Graph Structural Metrics
+============================================================
+  Entropy (nats)        :  12.4767
+  Gini Coefficient      :  0.635207
+  In-Degree Spearman ρ  :  0.865128
+  In-Degree Spearman p  :  0
+  In-Degree Pearson r   :  0.891284
+  In-Degree Pearson p   :  0
+  Power-law α           :  1.10991
+  Power-law R²          :  0.989161
+  Top-1% PR Mass        :  0.270903
+  Top-10% PR Mass       :  0.568404
+  Top-1 Node PR Mass    :  0.000923725
+  Max/Mean Ratio        :  808.918
