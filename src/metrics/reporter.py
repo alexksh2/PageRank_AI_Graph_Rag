@@ -524,22 +524,23 @@ class MetricsReporter:
 
     def _fig_top20_bar(self) -> str:
         r = self._structural_scores
-        top_idx    = np.argsort(-r)[:20]
+        k = min(20, len(r))
+        top_idx    = np.argsort(-r)[:k]
         top_scores = r[top_idx]
         labels = [str(i) for i in top_idx]
 
         # Gradient: top bar is GS Navy, fades to a lighter navy-blue
-        bar_colors = [_GS_CMAP(1.0 - (i / 19) * 0.65) for i in range(20)]
+        bar_colors = [_GS_CMAP(1.0 - (i / max(k - 1, 1)) * 0.65) for i in range(k)]
 
         fig, ax = plt.subplots(figsize=(13, 5.5))
-        bars = ax.bar(range(20), top_scores, color=bar_colors,
+        bars = ax.bar(range(k), top_scores, color=bar_colors,
                       edgecolor=GS_WHITE, linewidth=0.6, width=0.72)
 
         # Gold accent stripe on the #1 bar
         bars[0].set_edgecolor(GS_GOLD)
         bars[0].set_linewidth(2.0)
 
-        ax.set_xticks(range(20))
+        ax.set_xticks(range(k))
         ax.set_xticklabels([f"Node\n{l}" for l in labels], fontsize=7.5)
         ax.set_ylabel("PageRank Score")
         _gs_title(ax, "Fig 6 — Top-20 PageRank Nodes",

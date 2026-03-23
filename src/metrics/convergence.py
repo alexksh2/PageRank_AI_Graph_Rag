@@ -76,7 +76,7 @@ class ConvergenceMetrics:
         rate_ratio = empirical_rate / theoretical_rate if theoretical_rate > 0 else float("nan")
 
         # Area under residual curve (trapezoidal integration)
-        auc = float(np.trapz(res))
+        auc = float(np.trapezoid(res) if hasattr(np, 'trapezoid') else np.trapz(res))
 
         def first_below(threshold):
             idxs = np.where(res < threshold)[0]

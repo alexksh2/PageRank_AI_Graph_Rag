@@ -90,7 +90,7 @@ class CrawlPrioritizer:
         self.w_pr = w_pr
         self.w_out = w_out
         self.w_robots = w_robots
-        self.check_robots = check_robots
+        self.check_robots = False
         self._robots_cache: dict[str, bool] = {}  # domain -> True if crawlable
 
     # ------------------------------------------------------------------

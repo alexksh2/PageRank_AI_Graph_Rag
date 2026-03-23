@@ -1,0 +1,185 @@
+This code block implements one iteration of the PageRank power method, computing the next PageRank vector r_new from the current r. It follows the Google matrix formula: G = (1 - p) * A_hat + (p / N) * e * e^T, where A_hat handles dangling nodes, p is the teleportation probability, and e is the all-ones vector. The steps avoid materializing the dense matrix G for efficiency.
+
+Block 1: Sparse Link-Following Step
+Computes r_new = A * r, where A is the column-stochastic sparse adjacency matrix (CSR format).
+This represents the link-following part: each node's new score is the sum of incoming scores from its neighbors, weighted by the link probabilities.
+self.A.dot(r) performs a sparse matrix-vector multiplication (O(nnz), where nnz is non-zero entries), efficient for large graphs.
+
+Block 2: Dangling Node Correction
+Handles dangling nodes (nodes with no outgoing links): Their "lost" PageRank mass (sum of scores on dangling nodes) is redistributed uniformly across all nodes.
+dangling_sum is the total score on dangling nodes; adds dangling_sum / N to each element of r_new.
+This implements the A_hat adjustment in the Google matrix, ensuring the matrix remains stochastic (columns sum to 1).
+
+Block 3: Teleportation
+Applies the teleportation (damping) factor: alpha = 1 - p (link-following weight), p is the teleportation probability (e.g., 0.15).
+alpha * r_new scales the link-following result; p / N adds uniform probability to jump to any node.
+This prevents rank sinks and ensures convergence; equivalent to adding (p / N) * e to the matrix-vector product.
+
+Block 4: Convergence Check
+Measures convergence using the L1 norm of the difference: residual = ||r_new - r||_1.
+If residual < tol (tolerance, e.g., 1e-8), the algorithm has converged (PageRank vector is stable).
+Appends to residuals list for tracking; used to decide if to continue iterating.
+
+
+
+Example Usage of run Method
+Below is a simple example demonstrating how to use the PageRankEngine.run() method. This assumes you have a small graph loaded (e.g., via the loader.py module) and converted to a sparse matrix. The example uses a 3-node graph for illustration.
+
+Prerequisites
+Install dependencies: pip install numpy scipy
+Assume graph is an adjacency list from loader.load_graph(), and you've built the sparse matrix A and dangling_mask (nodes with no outgoing links).
+Code Example
+Explanation
+Graph Loading: Loads the graph and builds a column-stochastic sparse matrix A (rows sum to 1 for each column).
+Dangling Mask: Boolean array marking nodes with no outgoing links.
+Engine Initialization: Creates PageRankEngine with default teleportation p=0.15.
+Run: Calls run() to compute PageRank; returns a PageRankResult with scores, iterations, etc.
+Output: For a small graph, it might converge in ~10-20 iterations. Scores sum to 1; top_k returns highest-ranked nodes.
+For larger graphs (e.g., web-Google.txt), this scales efficiently due to sparse operations. Adjust p, tol, and max_iter as needed. If convergence fails, increase max_iter.
+
+The run_sweep method in the PageRankEngine class is designed to compute PageRank scores for multiple teleportation probabilities (p values) in a single call, allowing you to analyze how the algorithm's behavior changes with different levels of "random surfing" or exploration.
+
+Method Signature and Parameters
+Input: p_values: list[float] - A list of teleportation probabilities to test (e.g., [0.1, 0.15, 0.2]). Each value must be in the range (0, 1].
+Output: dict[float, PageRankResult] - A dictionary where:
+Keys are the p values from the input list.
+Values are PageRankResult objects containing the scores, iterations, convergence status, etc., for that specific p.
+How It Works
+Initialization: Creates an empty dictionary results to store the outcomes.
+Iteration Loop: For each p value in p_values:
+Temporarily sets the engine's self.p to the current p value (overriding the default or previously set value).
+Logs the current p being used.
+Calls self.run() to perform the full PageRank power iteration with that p.
+Stores the resulting PageRankResult in the dictionary under the key pv.
+Return: Returns the dictionary of results.
+Key Points
+Reuses the Same Engine: The method modifies self.p in-place, so subsequent calls to run() or run_sweep() will use the last p value from the sweep. If you need to preserve the original p, create a new engine instance.
+Efficiency: Runs multiple PageRank computations sequentially on the same graph/matrix, which is efficient since the matrix setup (A and dangling_mask) remains the same.
+Use Cases:
+Parameter Tuning: Compare how different p values affect convergence speed, score distribution, and ranking (e.g., lower p emphasizes link structure, higher p makes scores more uniform).
+Analysis: Generate plots or tables showing score changes across p values, as seen in the project's evaluation scripts.
+Logging: Each run is logged, so you can track progress in the console.
+Example Usage
+This method is particularly useful for experiments where you want to study the impact of the teleportation probability on PageRank outcomes, as demonstrated in the project's main.py and evaluation scripts.
+
+
+In the run method of the PageRankEngine class, r represents the PageRank vector (also called the PageRank scores or stationary distribution). It calculates the relative importance or authority of each node in the graph based on the link structure and the teleportation probability p.
+
+What r Represents
+Type: np.ndarray of shape (N,), where N is the number of nodes.
+Values: Probabilities that sum to 1.0 (a proper probability distribution).
+Interpretation: r[i] is the PageRank score for node i, indicating how likely a random surfer is to visit that node after many steps.
+How r Is Computed
+r is iteratively updated using power iteration to solve the equation r = G * r, where G is the Google matrix (not explicitly built due to sparsity). Each iteration refines r until convergence:
+
+Initialization: Starts as a uniform distribution (r = [1/N, 1/N, ..., 1/N]) or from a custom r0.
+Iteration Loop:
+r_new = A.dot(r): Propagates scores along links.
+r_new += (dangling_sum / N): Redistributes mass from dangling nodes uniformly.
+r_new = alpha * r_new + (p / N): Applies teleportation (random jumps).
+r = r_new: Updates r for the next iteration.
+Convergence: Stops when the change in r (L1 residual) is below tol, or after max_iter iterations.
+Final r: The converged PageRank scores, returned in PageRankResult.
+Key Properties
+Sums to 1: r.sum() ≈ 1.0.
+Higher values: Indicate more authoritative/central nodes.
+Influenced by p: Lower p emphasizes link structure; higher p makes scores more uniform.
+In the returned PageRankResult, r is stored as scores, and you can access top-ranked nodes via result.top_k(). This vector is the core output of PageRank, used for ranking web pages, nodes in networks, or entities in knowledge graphs.
+
+Using a concrete 3-node graph with p = 0.15:
+
+Graph: Node 0 → Node 1, Node 1 → Node 2, Node 2 → Node 0 (a simple cycle)
+
+Â (input — already built by _get_A_hat)
+
+Â = [[0,   0,   1  ],
+     [1,   0,   0  ],
+     [0,   1,   0  ]]
+Each column sums to 1 — node 0's only outlink goes to node 1, so column 0 is [0, 1, 0].
+
+alpha = 1.0 - self.p
+
+alpha = 1.0 - 0.15 = 0.85
+B = sp.eye(3) - 0.85 * A_hat
+
+I         =  [[1,    0,    0   ],
+               [0,    1,    0   ],
+               [0,    0,    1   ]]
+
+0.85 * Â  =  [[0,    0,    0.85],
+               [0.85, 0,    0   ],
+               [0,    0.85, 0   ]]
+
+B = I - 0.85*Â = [[ 1,    0,   -0.85],
+                   [-0.85, 1,    0   ],
+                   [ 0,   -0.85, 1   ]]
+Notice each row: diagonal is 1, off-diagonals are -0.85 * link_probability. Diagonal dominance is clear — 1 > 0.85 always.
+
+rhs = np.full(3, 0.15 / 3)
+
+rhs = [0.05, 0.05, 0.05]
+Every entry is the same p/N = 0.15/3 = 0.05 — uniform teleportation contribution.
+
+What spsolve(B, rhs) gives
+
+r ≈ [0.333, 0.333, 0.333]
+Expected — a symmetric cycle gives equal PageRank to all nodes, regardless of p.
+
+Why use sp.eye(3)
+sp.eye(3) creates a sparse identity matrix instead of np.eye(3) which creates a dense one.
+
+The difference
+np.eye(3) — dense:
+
+
+[[1., 0., 0.],
+ [0., 1., 0.],
+ [0., 0., 1.]]
+Stores all 9 values in memory, including the 6 zeros.
+
+sp.eye(3, format="csr") — sparse:
+
+
+Only stores: [(0,0)=1, (1,1)=1, (2,2)=1]
+Stores only the 3 non-zero values.
+
+Why it matters here
+A_hat is already a sparse matrix. If you subtract a dense I from it:
+
+The result B becomes dense
+All sparsity of A_hat is destroyed
+spsolve loses its efficiency advantage
+By using sp.eye, B stays sparse, and spsolve can exploit that sparsity for the O(N^1.5)–O(N^2) solve instead of O(N^3).
+
+At scale
+For a real web graph with N = 10,000 nodes:
+
+Matrix	Storage
+Dense np.eye(10000)	800 MB
+Sparse sp.eye(10000)	~0.24 MB (only N non-zeros)
+The format="csr" specifically matches A_hat's format so the subtraction I - alpha*A_hat doesn't trigger a format conversion, keeping the operation efficient.
+
+Yes. The choice is purely about efficiency, not correctness. Both give the same mathematical result.
+
+Dense version (works, but slow)
+
+I = np.eye(self.N)              # dense N×N
+B = I - alpha * A_hat.toarray() # must convert A_hat to dense too
+r = np.linalg.solve(B, rhs)     # dense solver
+Correct answer, but:
+
+Memory: O(N²) — 800 MB for N=10,000
+Solve: O(N³)
+Sparse version (what the code uses)
+
+I = sp.eye(self.N, format="csr") # sparse
+B = I - alpha * A_hat            # stays sparse
+r = spla.spsolve(B, rhs)         # sparse solver
+Same answer, but:
+
+Memory: O(N) — only non-zeros stored
+Solve: O(N^1.5)–O(N²)
+Rule of thumb
+Web/graph adjacency matrices are extremely sparse — a page with 10 links in a graph of 1 million nodes has a density of 0.000001%. Using dense matrices here would be like storing a map of the world just to mark 10 cities.
+
+So yes, you can use dense — it's just impractical beyond toy-sized graphs (N > ~1,000).

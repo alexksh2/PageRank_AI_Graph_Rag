@@ -464,3 +464,30 @@
   answer?) and structurally (does the distribution have the right heavy-tail shape?). GraphRAG is
   evaluated as an information retrieval problem — the PPR scores are treated like a ranked list and
   judged against a manually-curated ground truth of relevant entities.
+
+Based on the code in each file, here's what main.py, crawl_demo.py, and evaluate.py are used for in this PageRank + GraphRAG project:
+
+main.py
+Purpose: Main driver script that runs a sequence of 4 experiments to demonstrate the project's core functionality.
+Experiments:
+Analytical PageRank: Shows closed-form PageRank derivation on a small toy graph.
+Large-Scale PageRank: Runs power-iteration PageRank on the SNAP web-Google dataset (requires downloading the dataset), with comparison to analytical solutions and parameter sweeps.
+AI Web Crawl Prioritization: Demonstrates GPTBot-style web crawling using PageRank-based prioritization.
+GraphRAG Query Answering: Shows multi-hop question answering via Personalized PageRank on a knowledge graph (e.g., Marie Curie → medical imaging).
+Usage: Run all experiments with python main.py, or specific ones with flags like python main.py --exp 2.
+crawl_demo.py
+Purpose: Demonstrates AI training data crawl prioritization using a Quality-Weighted Authority (QWA) heuristic.
+Key Features:
+Uses a synthetic 42-node web graph with realistic link patterns (academic, government, news, tech, spam sites).
+Runs 10 experiments comparing crawl strategies (e.g., PageRank vs. QWA vs. random).
+Visualizes crawl results and prioritizes high-quality pages for AI training data collection.
+Usage: Run the full demo with python crawl_demo.py, or customize with options like --k 15 for top-k cutoff.
+evaluate.py
+Purpose: Comprehensive metrics evaluation and automated report generation for the project's algorithms.
+Key Features:
+Runs all metric categories (correctness, convergence, ranking, scalability, graph structure, GraphRAG) against the web-Google graph and GraphRAG demo.
+Generates figures, tables, and reports published to the results directory.
+Supports both full evaluation (requires web-Google dataset) and toy graph mode (--small).
+Usage: Run full evaluation with python evaluate.py, or toy mode with python evaluate.py --small.
+These scripts provide end-to-end demonstrations, experiments, and evaluations for the PageRank and GraphRAG implementations in the project. main.py is for high-level demos, crawl_demo.py focuses on crawl prioritization, and evaluate.py handles quantitative analysis and reporting.
+

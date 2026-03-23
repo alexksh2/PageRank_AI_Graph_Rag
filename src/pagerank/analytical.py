@@ -37,8 +37,7 @@ CLOSED FORM:
 
     r = (p/N) * [I - (1-p) * A_hat]^{-1} * e          ... (4)
 
-The matrix [I - (1-p)*A_hat] is strictly diagonally dominant for p > 0,
-so it is always invertible.  We solve the linear system (3) directly
+The matrix [I - (1-p)*A_hat] is always invertible.  We solve the linear system (3) directly
 using scipy's sparse direct solver (SuperLU) instead of inverting (4)
 explicitly — this is O(N^1.5) to O(N^2) but exact for small graphs.
 
@@ -101,7 +100,8 @@ class AnalyticalPageRank:
         """
         Return the analytical PageRank vector, or None if N is too large.
 
-        The returned vector sums to 1 (probability distribution).
+        The returned vector sums to 1 (probability distribution).     r = (p/N) * [I - (1-p) * A_hat]^{-1} * e          ... (4)
+
         """
         if self.N > _MAX_DIRECT_N:
             logger.warning(
@@ -122,7 +122,7 @@ class AnalyticalPageRank:
 
         logger.info("Solving %dx%d linear system (direct sparse LU) ...", self.N, self.N)
         try:
-            r = spla.spsolve(B, rhs)
+            r = spla.spsolve(B, rhs) #Directly implements equation (3) from the docstring. spsolve finds r such that B*r = rhs exactly — no iteration, no tolerance, no approximation.
         except Exception as exc:
             logger.error("Direct solve failed: %s", exc)
             return None

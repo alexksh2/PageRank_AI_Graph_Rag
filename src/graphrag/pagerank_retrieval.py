@@ -120,7 +120,7 @@ class PageRankRetrieval:
             return []
 
         v_q = self._build_personalisation(seed_entities, N)
-        r = self._power_iterate(v_q, N)
+        r = self._power_iterate(v_q, N) #Page Rank Score Vector
 
         # Sort by score descending
         order = np.argsort(-r)

@@ -192,7 +192,7 @@ class KnowledgeGraph:
             if out_degree[src] > 0:
                 rows.append(dst)
                 cols.append(src)
-                data.append(w / out_degree[src])
+                data.append(w / out_degree[src]) #normalise the weight
 
         A = sp.csr_matrix((data, (rows, cols)), shape=(N, N), dtype=np.float64)
 
@@ -242,7 +242,7 @@ class KnowledgeGraph:
         path = Path(path)
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        kg = cls()
+        kg = cls() #same as kg = KnowledgeGraph(), class method
         for e in data["entities"]:
             entity = Entity(idx=e["idx"], name=e["name"], entity_type=e["type"], metadata=e.get("meta", {}))
             kg._entities[e["name"]] = entity

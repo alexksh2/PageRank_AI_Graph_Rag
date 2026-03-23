@@ -102,6 +102,39 @@ class TestPageRankEngine:
         assert len(top2) == 2
         assert top2[0][1] >= top2[1][1]  # sorted descending
 
+    def test_p_sweep_concentration(self):
+        """Lower p concentrates mass; higher p spreads scores toward uniform."""
+        A, dangling, N = make_dangling_graph()
+
+        engine_low  = PageRankEngine(A, dangling, p=0.01).run()
+        engine_mid  = PageRankEngine(A, dangling, p=0.15).run()
+        engine_high = PageRankEngine(A, dangling, p=0.99).run()
+
+        # All must still sum to 1
+        assert abs(engine_low.scores.sum()  - 1.0) < 1e-8
+        assert abs(engine_mid.scores.sum()  - 1.0) < 1e-8
+        assert abs(engine_high.scores.sum() - 1.0) < 1e-8
+
+        # Lower p → more concentrated → higher std deviation
+        assert engine_low.scores.std() > engine_mid.scores.std()
+        assert engine_mid.scores.std() > engine_high.scores.std()
+
+        # Higher p → scores approach uniform (1/N)
+        uniform = np.full(N, 1.0 / N)
+        assert np.abs(engine_high.scores - uniform).max() < np.abs(engine_low.scores - uniform).max()
+
+    def test_p_sweep_run_sweep(self):
+        """run_sweep returns one result per p value, all valid."""
+        A, dangling, N = make_triangle_graph()
+        p_values = [0.01, 0.15, 0.50, 0.99]
+        engine = PageRankEngine(A, dangling, p=0.15)
+        results = engine.run_sweep(p_values)
+
+        assert set(results.keys()) == set(p_values)
+        for p, result in results.items():
+            assert abs(result.scores.sum() - 1.0) < 1e-8
+            assert (result.scores >= 0).all()
+
 
 # ---------------------------------------------------------------------------
 # AnalyticalPageRank tests
