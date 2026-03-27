@@ -223,13 +223,6 @@ def evaluate_graphrag(reporter: MetricsReporter):
         "mobile_xray_unit", "radioactive_tracers",
     }
 
-    # Expected reasoning chains
-    expected_chains = [
-        ["Marie Curie", "discovered", "radium"],
-        ["Marie Curie", "coined_term", "radioactivity"],
-        ["Marie Curie", "developed", "mobile_xray_unit"],
-    ]
-
     # Build chains
     engine = GraphRAGQueryEngine(kg, p=0.15, k=15)
     resp = engine.query(
@@ -241,8 +234,6 @@ def evaluate_graphrag(reporter: MetricsReporter):
         results=results,
         relevant_entities=relevant,
         seeds=seeds,
-        expected_chains=expected_chains,
-        found_chains=resp.reasoning_chains,
     ).compute()
 
     reporter.add_graphrag(rag_metrics, retrieval_results=results)

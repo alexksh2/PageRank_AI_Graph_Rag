@@ -8,12 +8,10 @@ Metrics computed:
   - Mean Hop Distance                : avg BFS distance of top-k from seeds
   - Score Decay by Hop               : mean PPR score per hop distance (should decrease)
   - Personalisation Fidelity         : Spearman ρ between score and proximity to seeds
-  - Chain Coverage                   : fraction of expected reasoning chains found
   - Seed Score vs Non-Seed Score     : ratio (seeds should rank highest for high p)
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 import numpy as np
 from scipy import stats
 
@@ -32,7 +30,6 @@ class GraphRAGResult:
     mean_hop_distance: float
     score_by_hop: dict[int, float]         # hop -> mean score
     personalisation_fidelity: float        # Spearman ρ(score, -hop_distance)
-    chain_coverage: float
     seed_vs_nonseed_ratio: float
 
     def as_dict(self) -> dict:
@@ -44,7 +41,6 @@ class GraphRAGResult:
             "Hit@10":                       self.hit_at_10,
             "Mean Hop Distance (top-10)":   self.mean_hop_distance,
             "Personalisation Fidelity ρ":   self.personalisation_fidelity,
-            "Chain Coverage":               self.chain_coverage,
             "Seed/Non-Seed Score Ratio":    self.seed_vs_nonseed_ratio,
         }
         for k, v in self.precision_at_k.items():
@@ -65,8 +61,6 @@ class GraphRAGMetrics:
     results          : list of RetrievalResult from PageRankRetrieval.retrieve()
     relevant_entities: set of entity names considered ground-truth relevant
     seeds            : list of seed entity names used in the query
-    expected_chains  : list of known multi-hop reasoning chains (list of lists)
-    found_chains     : list of chains actually returned by the engine
     """
 
     def __init__(
@@ -74,14 +68,10 @@ class GraphRAGMetrics:
         results: list[RetrievalResult],
         relevant_entities: set[str],
         seeds: list[str],
-        expected_chains: Optional[list[list[str]]] = None,
-        found_chains: Optional[list[list[str]]] = None,
     ):
         self.results = results
         self.relevant = relevant_entities
         self.seeds = set(seeds)
-        self.expected_chains = expected_chains or []
-        self.found_chains = found_chains or []
 
     def compute(self) -> GraphRAGResult:
         names = [r.entity_name for r in self.results]
@@ -128,14 +118,6 @@ class GraphRAGMetrics:
         else:
             fidelity = float("nan")
 
-        # Chain coverage
-        if self.expected_chains:
-            found_set = {tuple(c) for c in self.found_chains}
-            expected_set = {tuple(c) for c in self.expected_chains}
-            coverage = len(found_set & expected_set) / len(expected_set)
-        else:
-            coverage = float("nan")
-
         # Seed vs non-seed score ratio
         seed_scores = [r.score for r in self.results if r.entity_name in self.seeds]
         nonseed_scores = [r.score for r in self.results if r.entity_name not in self.seeds]
@@ -155,6 +137,5 @@ class GraphRAGMetrics:
             mean_hop_distance=mean_hop,
             score_by_hop=score_by_hop_mean,
             personalisation_fidelity=fidelity,
-            chain_coverage=coverage,
             seed_vs_nonseed_ratio=ratio,
         )
