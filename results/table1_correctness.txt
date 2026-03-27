@@ -1,11 +1,11 @@
 Table 1 — Correctness Metrics
 ============================================================
-  L1 Error           :  8.53366e-09
-  L2 / RMSE          :  1.54968e-09
-  L∞ Error           :  2.30639e-09
-  Sum Deviation      :  2.22045e-16
+  L1 Error           :  0.126893
+  L2 / RMSE          :  6.91667e-07
+  L∞ Error           :  9.63994e-05
+  Sum Deviation      :  3.33067e-16
   Non-Negative Rate  :  1
   Floor Rate (≥p/N)  :  1
-  Pearson r          :  1
-  Pearson p-value    :  2.95823e-31
-  Worst Node Index   :  0
+  Pearson r          :  0.995936
+  Pearson p-value    :  0
+  Worst Node Index   :  1463

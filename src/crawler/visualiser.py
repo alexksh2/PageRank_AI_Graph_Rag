@@ -82,7 +82,7 @@ def _short(name: str) -> str:
 
 
 def _wm(fig):
-    fig.text(0.99, 0.01, "Goldman Sachs  |  Crawl Heuristics",
+    fig.text(0.99, 0.01, "Crawl Heuristics",
              ha="right", va="bottom", fontsize=6, color=GS_MID_GRAY, style="italic")
 
 

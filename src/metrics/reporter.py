@@ -137,7 +137,7 @@ def _gs_title(ax, title: str, subtitle: str = ""):
                  fontweight="bold", color=GS_NAVY)
 
 
-def _gs_watermark(fig, text="Goldman Sachs  |  PageRank Analytics"):
+def _gs_watermark(fig, text="PageRank Analytics"):
     """Add a discreet footer watermark."""
     fig.text(0.99, 0.01, text,
              ha="right", va="bottom", fontsize=6.5,
@@ -176,12 +176,14 @@ class MetricsReporter:
         self._p_sweep_data: dict = {}
         self._scores_iter: Optional[np.ndarray] = None
         self._scores_anal: Optional[np.ndarray] = None
+        self._fig4_fallback: bool = False  # True when analytical unavailable
 
     # ── Data registration ────────────────────────────────────────────────────
 
-    def add_correctness(self, result, scores_iter=None, scores_anal=None):
+    def add_correctness(self, result, scores_iter=None, scores_anal=None, fallback: bool = False):
         self._correctness = result
         self._scores_iter = scores_iter
+        self._fig4_fallback = fallback
         self._scores_anal = scores_anal
 
     def add_convergence_sweep(self, sweep: dict):
@@ -217,12 +219,12 @@ class MetricsReporter:
             created.append(self._fig_score_distribution())
         if self._structural_A is not None and self._structural_scores is not None:
             created.append(self._fig_indegree_scatter())
-        if self._scores_iter is not None and self._scores_anal is not None:
-            created.append(self._fig_analytical_vs_iterative())
         if self._p_sweep_data:
             created.append(self._fig_p_sweep())
         if self._structural_scores is not None:
             created.append(self._fig_top20_bar())
+        if self._scores_iter is not None and self._scores_anal is not None:
+            created.append(self._fig_analytical_vs_iterative())
         if self._graphrag_results is not None:
             created.append(self._fig_graphrag_hop_scores())
         if self._graphrag is not None:
@@ -417,7 +419,9 @@ class MetricsReporter:
         idx = np.random.RandomState(1).choice(N, sample, replace=False)
 
         fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
-        fig.suptitle("Fig 4 — Analytical vs Iterative PageRank",
+        subtitle = ("p=0.10 vs p=0.15 proxy  ·  graph too large for direct solve"
+                    if self._fig4_fallback else "Analytical ground truth vs power iteration")
+        fig.suptitle(f"Fig 6 — Analytical vs Iterative PageRank\n{subtitle}",
                      fontsize=13, fontweight="bold", color=GS_NAVY, x=0.02, ha="left")
 
         # Left: identity scatter
@@ -459,7 +463,7 @@ class MetricsReporter:
 
         _gs_watermark(fig)
         fig.tight_layout(rect=[0, 0, 1, 0.94])
-        path = str(self.out / "fig4_analytical_vs_iterative.png")
+        path = str(self.out / "fig6_analytical_vs_iterative.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -474,7 +478,7 @@ class MetricsReporter:
 
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
         fig.suptitle(
-            "Fig 5 — Effect of Teleportation Probability p on PageRank Distribution",
+            "Fig 4 — Effect of Teleportation Probability p on PageRank Distribution",
             fontsize=13, fontweight="bold", color=GS_NAVY, x=0.02, ha="left",
         )
 
@@ -515,7 +519,7 @@ class MetricsReporter:
 
         _gs_watermark(fig)
         fig.tight_layout(rect=[0, 0, 1, 0.93])
-        path = str(self.out / "fig5_p_sweep.png")
+        path = str(self.out / "fig4_p_sweep.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -543,7 +547,7 @@ class MetricsReporter:
         ax.set_xticks(range(k))
         ax.set_xticklabels([f"Node\n{l}" for l in labels], fontsize=7.5)
         ax.set_ylabel("PageRank Score")
-        _gs_title(ax, "Fig 6 — Top-20 PageRank Nodes",
+        _gs_title(ax, "Fig 5 — Top-20 PageRank Nodes",
                   f"web-Google  ·  N = {len(r):,} nodes  ·  p = 0.15")
 
         # Value labels
@@ -561,7 +565,7 @@ class MetricsReporter:
         _gs_spine(ax)
         _gs_watermark(fig)
         fig.tight_layout()
-        path = str(self.out / "fig6_top20_nodes.png")
+        path = str(self.out / "fig5_top20_nodes.png")
         fig.savefig(path)
         plt.close(fig)
         return path

@@ -1,0 +1,389 @@
+
+Let’s do it with one tiny concrete example.
+
+Scores (positive) are:
+[0.40, 0.10, 0.30, 0.20]
+
+After sort descending:
+r = [0.40, 0.30, 0.20, 0.10], N = 4
+
+Now CCDF means: for threshold x, fraction of scores >= x.
+
+Use each sorted value as threshold:
+
+x = 0.40 → 1/4 scores are >= 0.40
+x = 0.30 → 2/4 scores are >= 0.30
+x = 0.20 → 3/4 scores are >= 0.20
+x = 0.10 → 4/4 scores are >= 0.10
+
+
+self._structural_scores comes from the PageRank score vector computed in evaluate.py and then injected into MetricsReporter.
+
+Flow:
+
+PageRank run stores scores:
+evaluate.py:94
+results_by_p[pv] = pr_result.scores
+It picks the default p=0.15 scores:
+evaluate.py:122
+r_iterative = results_by_p[0.15]
+It passes those scores into reporter:
+evaluate.py:147
+reporter.add_structural(struct, r_iterative, A)
+Reporter stores them here:
+reporter.py:196
+reporter.py:198
+self._structural_scores = scores
+So in r = np.sort(self._structural_scores)[::-1], self._structural_scores is the iterative PageRank vector (r_iterative) at p=0.15.
+
+
+This line fits a straight line to log-log data:
+
+slope, intercept, r_value, p_value, _ = stats.linregress(scores_log, ranks)
+Here:
+
+scores_log = log(score)
+ranks = log(rank)
+So it fits:
+
+
+log(rank)=slope⋅log(score)+intercept
+Outputs:
+
+slope: gradient of best-fit line (used to compute alpha as -slope in this code).
+intercept: line offset.
+r_value: correlation of the fit (r_value**2 is R2).
+p_value: significance of non-zero slope.  : standard error (ignored).
+
+
+Because the method is using a rank–frequency fit, and rank only makes sense after ordering.
+
+In _powerlaw_fit it does:
+
+sorted_r = np.sort(r[r > 0])[::-1] (largest score = rank 1, next = rank 2, ...)
+ranks = log(1..N)
+regress log(rank) vs log(score)
+So sorting is required to create correct (score, rank) pairs.
+
+If you skip sorting:
+
+index i is just original node order, not rank,
+(log(score), log(rank)) pairs are mismatched,
+slope/alpha becomes meaningless.
+Same idea for CCDF plotting: sorting gives thresholds in descending order so survival fractions map correctly and monotonically.
+
+
+
+
+
+
+You can use ascending, but then you must change the formula.
+
+For your current code, descending is matched to CCDF:
+
+r = np.sort(scores)[::-1]          # largest -> smallest
+ccdf = np.arange(1, N+1) / N       # 1/N, 2/N, ..., 1
+Why: at r[i] (i-th largest), exactly i+1 values are >= r[i].
+
+If you sort ascending:
+
+r = np.sort(scores)                # smallest -> largest
+ccdf = np.arange(N, 0, -1) / N     # N/N, ..., 1/N
+So:
+
+Descending + increasing fractions = CCDF
+Ascending + decreasing fractions = CCDF
+Same for power-law rank fit: rank must still mean “1 = largest score.”
+If you sort ascending, use reversed ranks (N ... 1) to keep that meaning.
+
+
+
+You’re right to question it. In this code, r[0] is mostly a normalization reference, not a deep requirement.
+
+r is sorted descending, so r[0] = largest score.
+x_fit runs from smallest to largest score.
+y_fit = (x_fit / r[0]) ** (-alpha + 1) creates the power-law shape.
+y_fit = y_fit / y_fit[0] then rescales the whole curve so the first point is exactly 1.
+Algebraically, after that second line, r[0] cancels out:
+
+So yes: using r[0] then dividing by y_fit[0] is equivalent to a clearer form:
+
+k = -alpha + 1
+x0 = x_fit[0]          # smallest x
+y_fit = (x_fit / x0) ** k
+
+Meaning: they only care about matching the fitted line’s shape, then normalize its vertical scale for plotting.
+
+
+
+Not exactly.
+
+It does not normalize x_fit itself.
+It computes y_fit using a ratio x_fit / r[0] (x scaled relative to a reference).
+Then it normalizes only y_fit by dividing by y_fit[0], so the first y point becomes 1.
+So:
+
+x: unchanged values on the x-axis.
+y: rescaled curve (same shape, different vertical scale).
+
+
+This block draws a sampled scatter of nodes:
+
+x = in_deg[idx]: sampled nodes’ weighted in-degree
+y = r[idx]: same sampled nodes’ PageRank
+So each dot is one node at (in-degree, PageRank).
+
+Color:
+
+c=np.log1p(r[idx]) colors each dot by log(1 + PageRank).
+log1p compresses tiny PageRank differences so color contrast is usable.
+Style:
+
+cmap=_GS_CMAP uses the custom navy→gold colormap.
+alpha=0.55 makes points semi-transparent (reduces overplotting).
+s=6 small markers for dense clouds.
+linewidths=0 no marker edges for cleaner dense scatter.
+
+
+⏺ What is weighted in-degree?                               
+                                                                
+  The matrix A is not a plain 0/1 adjacency matrix — each entry 
+  is 1 / out_degree(src). So when you sum row i across all      
+  columns:                                                      
+                                                                
+  in_deg[i] = sum of A[i, j] for all j                          
+             = sum of (1 / out_degree(j)) for every node j that 
+  links to i                                                    
+                                                                
+  This is "weighted" because each incoming link is not counted  
+  as 1 — it is counted as a fraction based on how many other
+  links the source node also has. A link from a node that only  
+  links to you is worth more (1/1 = 1.0) than a link from a node
+   that links to 1000 others (1/1000 = 0.001).
+
+  This is actually very close to what PageRank itself computes —
+   which is why the correlation is so high.
+                                                                
+  ---             
+  Results interpretation (Spearman ρ = 0.865, Pearson r = 
+  0.891):                                                       
+         
+  Both are strong but not perfect correlations. This tells three
+   things:                                                      
+   
+  1. In-degree is a good proxy for PageRank — nodes with        
+  more/higher-quality incoming links do tend to rank higher. The
+   bulk of the scatter plot points follow a clear diagonal trend
+   on the log-log axes.
+
+  2. PageRank adds information beyond raw in-degree — the       
+  correlation is not 1.0. Some nodes have high in-degree but
+  lower-than-expected PageRank, because their inbound links come
+   from low-authority sources. Conversely, some nodes with
+  modest in-degree rank higher because they are linked to by
+  highly authoritative nodes.
+
+  3. Spearman < Pearson is unusual here — normally Spearman     
+  (rank-based) is more robust. The fact that Pearson r (0.891)
+  is slightly higher than Spearman ρ (0.865) suggests the       
+  relationship is actually more linear in log-log space than it
+  is purely ordinal, consistent with both quantities following
+  power-law distributions.
+
+
+  ⏺ Normally:    
+  - Spearman ρ ≥ Pearson r, because Spearman is rank-based and more robust to outliers and
+  non-linear relationships                                                                  
+  - Pearson r can be dragged down by extreme outliers (like hub nodes with very high scores)
+                                                                                            
+  ---                                                                                       
+  Here Pearson r (0.891) > Spearman ρ (0.865) — why?                                        
+                                                                                            
+  Both weighted in-degree and PageRank follow power-law distributions. When you plot them on
+   log-log axes, the power-law relationship becomes a straight line:                        
+                  
+  log(PageRank) ≈ α × log(in_degree) + c                                                    
+                                                                                            
+  Pearson r measures linear correlation — and on log-log axes, the relationship IS linear.  
+  So Pearson is actually well-suited here and gives a high score.                           
+                                                                                            
+  Spearman only looks at rank order — it ignores the actual values and just asks "does a    
+  higher in-degree always mean a higher PageRank rank?". The hub nodes (extreme outliers)
+  distort the rank ordering more than they distort the log-log linear fit, which slightly   
+  pulls Spearman down.
+
+  ---
+  Simple analogy:
+                                                                                            
+  Imagine plotting city populations vs city areas on log-log axes — the relationship is a
+  clean straight line. Pearson on the log-log values captures this well. But Spearman only  
+  sees the rank order (city 1 is biggest, city 2 is second...) and loses the information
+  that the relationship is precisely linear in log space.                                   
+                  
+  ---
+  Bottom line: Pearson > Spearman here is actually evidence that the power-law structure is 
+  real and clean — the log-log relationship is so linear that a linear correlation measure  
+  outperforms a rank-based one.
+                                                                                            
+❯ What does both of them measures in the equation                                           
+                                                                                        
+⏺ Both Spearman and Pearson measure how strongly two variables move together, but in        
+  different ways.                                                                           
+                                               
+  ---                                                                                       
+  Pearson r — measures linear correlation on raw values:                                    
+                                                                                            
+  r = Σ[(x_i - x̄)(y_i - ȳ)] / sqrt[Σ(x_i - x̄)² × Σ(y_i - ȳ)²]                               
+                                                                                            
+  - x = weighted in-degree values                                                           
+  - y = PageRank scores                                                                     
+  - Asks: "when in-degree increases by some amount, does PageRank increase proportionally?" 
+  - Sensitive to the actual magnitude of values                                             
+  - Range: -1 to 1                                                                          
+                                                                                            
+  ---                                                                                       
+  Spearman ρ — measures rank correlation:
+
+  ρ = 1 - (6 × Σd_i²) / (n(n²-1))
+                                                                                            
+  - d_i = difference in rank between node i's in-degree rank and PageRank rank              
+  - Asks: "when in-degree rank goes up by one position, does PageRank rank also go up?"     
+  - Ignores actual values, only cares about ordering                                        
+  - Range: -1 to 1                                                                          
+                                                                                            
+  ---                                                                                       
+  Key difference in this context:
+                                                                                            
+  ┌─────────────────────────┬──────────────────────────┬───────────────────────────────┐ 
+  │                         │         Pearson          │           Spearman            │    
+  ├─────────────────────────┼──────────────────────────┼───────────────────────────────┤ 
+  │ Input                   │ Actual log(score) values │ Rank positions (1st, 2nd,     │ 
+  │                         │                          │ 3rd...)                       │ 
+  ├─────────────────────────┼──────────────────────────┼───────────────────────────────┤    
+  │ Question                │ Is the relationship      │ Is the ordering consistent?   │    
+  │                         │ linear?                  │                               │    
+  ├─────────────────────────┼──────────────────────────┼───────────────────────────────┤    
+  │ Affected by outliers    │ Yes                      │ No                            │ 
+  ├─────────────────────────┼──────────────────────────┼───────────────────────────────┤ 
+  │ Affected by             │ Yes                      │ No                            │ 
+  │ non-linearity           │                          │                               │
+  └─────────────────────────┴──────────────────────────┴───────────────────────────────┘    
+   
+  Pearson on log-log values says: "the log values move together linearly"                   
+                  
+  Spearman says: "the rank positions move together consistently"                            
+                  
+  Here both are high (0.891 and 0.865), meaning weighted in-degree and PageRank agree both  
+  in magnitude and ordering — just slightly more in magnitude than in pure rank order.
+                                                                                            
+❯ should spearman be higher than pearson then                                               
+                                                                                        
+⏺ Yes, normally Spearman ≥ Pearson because:                                                 
+                                                                                            
+  - Pearson assumes a linear relationship and is sensitive to outliers pulling it down      
+  - Spearman only cares about rank order, so extreme hub nodes (very high in-degree, very   
+  high PageRank) don't distort it — they just become rank 1, rank 2, etc.                   
+                                                                                            
+  ---                                                                                       
+  Why it flipped here:                                                                      
+                                                                                            
+  The hub nodes (extreme outliers) actually help Pearson rather than hurt it. On log-log
+  axes, those extreme points fall perfectly on the straight line — they are not outliers in 
+  log space, they are the most consistent part of the relationship.
+                                                                                            
+  But for Spearman, the hub nodes cause rank ties and instability at the top of the ranking.
+   A node might be rank 1 by in-degree but rank 3 by PageRank (or vice versa), because at
+  the extreme end small differences in the recursive authority calculation reorder the top  
+  nodes. These rank swaps penalise Spearman even though the actual score values are very
+  close.
+
+  ---
+  So the flip tells you:
+                                                                                            
+  ▎ The relationship between weighted in-degree and PageRank is more consistent in log-scale
+   magnitude than it is in exact rank order                                                 
+                  
+  Meaning the scores track each other well proportionally across the whole graph, but the   
+  precise ordering of the top nodes is less stable — which makes sense since top nodes have
+  very similar PageRank scores and small differences in recursive authority can shuffle     
+  their exact positions.
+
+  ⏺ The analytical solution comes from the same dataset as the iterative solution —
+  data/web-Google.txt (or the toy graph in --small mode). Both methods run on identical 
+  input.                                                                                     
+                                               
+  However there is an important detail at evaluate.py:126-142:                               
+                                                                                             
+  analytical = AnalyticalPageRank(A, dangling, p=p_ref)                                      
+  r_analytical = analytical.compute()                                                        
+  if r_analytical is not None:                                                               
+      # use analytical as ground truth                                                       
+  else:                                                                                      
+      # graph too large for analytical — fall back to p=0.10 as proxy
+      r_b = results_by_p[0.10]                                                               
+                                                                                             
+  The analytical solution uses a direct linear solver (scipy.sparse.linalg.spsolve) to solve:
+                                                                                             
+  r = (1-p) * A * r + p * (1/N)                                                              
+                                                                                             
+  This only works if the matrix fits in memory and the solver can handle it. For the full    
+  web-Google graph (875k nodes), r_analytical returns None if the solver fails — in which    
+  case the p=0.10 iterative run is used as a proxy ground truth instead.                     
+                  
+  So the ranking metrics (Spearman ρ = 0.993, Kendall τ = 0.941) are actually comparing      
+  p=0.15 vs p=0.10 iterative results, not iterative vs true analytical — unless the
+  analytical solver succeeded on your machine.                                               
+                  
+
+It means the color value for each point is not raw r, but transformed:
+
+ci=log(1+ri)
+
+Why:
+
+PageRank values are usually tiny and highly skewed.
+If you color by raw r, most points look nearly same color.
+log(1+r) spreads small values more evenly for visual contrast.
+So color still reflects PageRank magnitude, just on a compressed/log scale.
+log1p(x) is just a numerically stable way to compute log(1+x).
+
+
+
+
+⏺ Done. Summary of changes:
+
+  - crawl_demo.py: imports CrawlPrioritizer and adds a Step 2b that
+   shows its top-k table and prints explain_policy()
+  - experiments.py: imports CrawlPrioritizer, instantiates it as
+  self._prioritizer in __init__, adds it as H5_CrawlPrioritizer in
+  EXP-6 (robots compliance) and EXP-10 (head-to-head), so it now
+  appears in the comparison tables and figures
+
+  ---
+  Now to your other question — here are all the heuristics:
+
+  ┌─────┬──────────────────────────┬────────────────────────────┐
+  │ ID  │           Name           │           Signal           │
+  ├─────┼──────────────────────────┼────────────────────────────┤
+  │ H0  │ RandomBaseline           │ Uniform random — baseline  │
+  ├─────┼──────────────────────────┼────────────────────────────┤
+  │ H1  │ PurePageRank             │ PageRank score only        │
+  ├─────┼──────────────────────────┼────────────────────────────┤
+  │ H2  │ HubAuthority             │ PageRank × out-degree      │
+  │     │                          │ (HITS-inspired)            │
+  ├─────┼──────────────────────────┼────────────────────────────┤
+  │ H3  │ PRRobots                 │ PageRank ×                 │
+  │     │                          │ robots-compliance bonus    │
+  ├─────┼──────────────────────────┼────────────────────────────┤
+  │     │                          │ 0.40×PR + 0.25×DomainRep + │
+  │ H4  │ QualityWeightedAuthority │  0.15×TLD + 0.10×URLDepth  │
+  │     │                          │ + 0.10×Robots              │
+  ├─────┼──────────────────────────┼────────────────────────────┤
+  │     │                          │ 0.75×PR_norm +             │
+  │ H5  │ CrawlPrioritizer         │ 0.25×OutDegree_norm with   │
+  │     │                          │ hard robots.txt gate       │
+  └─────┴──────────────────────────┴────────────────────────────┘
+
+  H4 (QWA) is the proposed heuristic. H5 (CrawlPrioritizer) is now
+  wired in as an additional comparison — it is simpler than QWA
+  (fewer signals) but adds the hard robots gate concept.

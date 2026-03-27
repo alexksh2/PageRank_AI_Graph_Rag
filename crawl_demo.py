@@ -37,6 +37,7 @@ from src.crawler.heuristics import build_all, QualityWeightedAuthority
 from src.crawler.experiments import ExperimentSuite
 from src.crawler.visualiser import CrawlVisualiser
 from src.crawler.quality_proxy import score_url
+from src.crawler.prioritizer import CrawlPrioritizer
 
 
 # ── Synthetic web graph ───────────────────────────────────────────────────────
@@ -198,10 +199,6 @@ GRAPH: dict[str, list[str]] = {
         "https://en.wikipedia.org/wiki/Machine_learning",
         "https://who.int/",
     ],
-    "https://nytimes.com/section/technology": [
-        "https://openai.com/research/gpt-3",
-        "https://en.wikipedia.org/wiki/Machine_learning",
-    ],
     "https://theguardian.com/technology": [
         "https://bbc.co.uk/news/technology",
         "https://openai.com/",
@@ -227,29 +224,35 @@ GRAPH: dict[str, list[str]] = {
         "https://stackoverflow.com/questions/pagerank",
     ],
 
-    # ── Low quality / spam (sink cluster) ────────────────────────────────────
-    "https://spammy-seo.com/buy-backlinks": [
-        "https://spammy-seo.com/",
-        "https://click-farm.net/",
+    # ── AI-blocked news sites (robots.txt blocks GPTBot/CCBot/anthropic-ai) ───
+    # All three verified: explicit ClaudeBot/CCBot/anthropic-ai + Disallow: /
+    "https://www.nytimes.com/section/technology": [
+        "https://openai.com/research/gpt-3",
+        "https://en.wikipedia.org/wiki/Machine_learning",
     ],
-    "https://spammy-seo.com/": [
-        "https://spammy-seo.com/buy-backlinks",
-        "https://click-farm.net/",
+    "https://www.cnn.com/tech": [
+        "https://reuters.com/technology/ai",
+        "https://openai.com/",
     ],
-    "https://click-farm.net/": [
-        "https://spammy-seo.com/",
-        "https://scraped-content.biz/",
+    "https://www.washingtonpost.com/technology": [
+        "https://www.nytimes.com/section/technology",
+        "https://openai.com/",
     ],
-    "https://scraped-content.biz/": [
-        "https://click-farm.net/",
-        "https://keyword-stuffed.org/",
+
+    # ── Developer / open-source (robots.txt allows all crawlers) ─────────────
+    "https://www.python.org/": [
+        "https://github.com/huggingface/transformers",
+        "https://stackoverflow.com/questions/pagerank",
+        "https://arxiv.org/",
     ],
-    "https://keyword-stuffed.org/": [
-        "https://scraped-content.biz/",
-        "https://spammy-seo.com/",
+    "https://docs.python.org/3/": [
+        "https://www.python.org/",
+        "https://github.com/huggingface/transformers",
     ],
-    "https://ad-network.io/tracker?ref=abc": [
-        "https://click-farm.net/",
+    "https://news.ycombinator.com/": [
+        "https://arxiv.org/",
+        "https://github.com/huggingface/transformers",
+        "https://openai.com/research/gpt-3",
     ],
     "https://substack.com/ai-weekly": [
         "https://openai.com/",
@@ -327,7 +330,7 @@ def main():
     parser.add_argument("--k",   type=int, default=10)
     parser.add_argument("--p",   type=float, default=0.15)
     parser.add_argument("--out", type=str, default="results/crawl")
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()  # ignore Jupyter kernel args
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -348,6 +351,21 @@ def main():
         ranked = h.rank(k=args.k)
         print_top_k_table(ranked, f"{h.name}  —  {h.description}", k=args.k)
 
+    # ── Step 2b: CrawlPrioritizer top-k ──────────────────────────────────────
+    prioritizer = CrawlPrioritizer(GRAPH, pageranks)
+    print("="*80)
+    print("  CRAWL PRIORITIZER (PageRank + Out-Degree frontier queue)")
+    print(f"  Policy: {prioritizer.w_pr:.0%} PageRank  +  {prioritizer.w_out:.0%} Out-Degree")
+    print("="*80)
+    print(prioritizer.explain_policy())
+    candidates = prioritizer.top_k(k=args.k)
+    print(f"\n  {'Rank':>4}  {'Priority':>8}  {'PageRank':>9}  {'OutDeg':>6}  URL")
+    print(f"  {'-'*4}  {'-'*8}  {'-'*9}  {'-'*6}  {'-'*50}")
+    for i, c in enumerate(candidates, 1):
+        url_short = c.url[:50] if len(c.url) > 50 else c.url
+        print(f"  {i:>4}  {c.priority:>8.4f}  {c.pagerank:>9.6f}  {c.out_degree:>6}  {url_short}")
+    print()
+
     # ── Step 3: explain QWA heuristic ────────────────────────────────────────
     print("="*80)
     print("  PROPOSED HEURISTIC: Quality-Weighted Authority (QWA)")
@@ -355,11 +373,12 @@ def main():
     print("""
   Signal Composition
   ──────────────────
-  score(u) = 0.40 × PageRank_norm(u)       ← link-authority endorsement
-           + 0.25 × DomainReputation(u)    ← editorial standards
+  Stage 1 — Hard robots gate: fetch robots.txt and discard domains that block AI crawlers
+  Stage 2 — Score permitted URLs:
+  score(u) = 0.45 × PageRank_norm(u)       ← link-authority endorsement
+           + 0.30 × DomainReputation(u)    ← editorial standards
            + 0.15 × TLDQuality(u)          ← .edu/.gov > .org > .com > .biz
            + 0.10 × URLDepthScore(u)       ← shallow pages = better content
-           + 0.10 × RobotsCompliance(u)    ← consent-cleared AI training data
 
   Why High-PageRank Pages Yield Better AI Training Data
   ──────────────────────────────────────────────────────
@@ -374,9 +393,6 @@ def main():
      Training data from stable sources is less likely to contain broken
      references, hallucination triggers, or stale facts.
 
-  4. CONCEPT COVERAGE  — Hub pages aggregate knowledge across a domain.
-     A single high-PR Wikipedia article may cover a concept more completely
-     than 50 lower-ranked blog posts.
 
   Why QWA Outperforms Pure PageRank
   ───────────────────────────────────
@@ -392,14 +408,14 @@ def main():
     print("="*80)
     print(f"  QWA Top-{args.k} — Full Signal Breakdown")
     print("="*80)
-    print(f"  {'#':>3}  {'PR':>7}  {'Rep':>5}  {'TLD':>5}  {'Dep':>5}  {'Rob':>5}  URL")
-    print(f"  {'-'*3}  {'-'*7}  {'-'*5}  {'-'*5}  {'-'*5}  {'-'*5}  {'-'*50}")
+    print(f"  {'#':>3}  {'PR':>7}  {'Rep':>5}  {'TLD':>5}  {'Dep':>5}  URL")
+    print(f"  {'-'*3}  {'-'*7}  {'-'*5}  {'-'*5}  {'-'*5}  {'-'*50}")
     for item in top_k:
         q = score_url(item.url)
         pr = pageranks.get(item.url, 0.0)
         print(
             f"  {item.rank:>3}  {pr:>7.5f}  {q.domain_reputation:>5.2f}  "
-            f"{q.tld_score:>5.2f}  {q.url_depth_score:>5.2f}  {item.signals.get('rob_norm',0):>5.2f}  "
+            f"{q.tld_score:>5.2f}  {q.url_depth_score:>5.2f}  "
             f"{item.url[:55]}"
         )
     print()

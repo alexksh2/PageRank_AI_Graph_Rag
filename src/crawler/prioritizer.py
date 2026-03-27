@@ -12,21 +12,26 @@ not all web pages are equally valuable.  High-PageRank pages tend to be:
   2. Information-dense -- well-curated hubs (Wikipedia, arXiv, official docs).
   3. Low-noise  -- spammy pages rarely accumulate many quality backlinks.
 
-We combine three signals into a composite PRIORITY SCORE:
+Two-stage strategy:
 
-    priority(u) = w_pr * norm(PR(u))                  (PageRank authority)
-               + w_out * norm(out_degree(u))           (hub potential: many links to follow)
-               + w_robots * robots_bonus(u)            (page respects/signals crawlability)
+  Stage 1 — Hard gate (robots.txt):
+    Discard any URL whose domain blocks known AI crawlers (GPTBot, CCBot,
+    anthropic-ai) in robots.txt.  A blocked page is NEVER crawled regardless
+    of how high its PageRank is.  This ensures all candidates are
+    consent-cleared before any quality ranking begins.
+
+  Stage 2 — Rank permitted pages by composite PRIORITY SCORE:
+
+    priority(u) = w_pr  * norm(PR(u))           (PageRank authority)
+               + w_out * norm(out_degree(u))     (hub potential: many links to follow)
 
 All components are normalised to [0, 1] before weighting so the weights
 are interpretable percentages.
 
 Heuristic for "high quality AND permits crawling":
-  - Download robots.txt for each domain.
-  - Pages whose domain does NOT block GPTBot/CCBot/OAI-SearchBot receive a
-    positive robots_bonus.
-  - This surfaces authoritative pages that actively welcome AI crawlers,
-    which are more likely to contain consent-cleared training data.
+  robots.txt is treated as a hard filter, not a soft bonus.
+  Only pages that explicitly permit AI crawlers are ranked.
+  Among those, PageRank authority is the primary quality signal.
 ============================================================
 """
 
@@ -36,6 +41,7 @@ import heapq
 import logging
 import re
 import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
 import time
@@ -45,9 +51,81 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # Known AI crawler user-agent tokens to check in robots.txt
-_AI_BOTS = ["GPTBot", "CCBot", "OAI-SearchBot", "anthropic-ai", "Googlebot"]
+_AI_BOTS = ["GPTBot", "CCBot", "OAI-SearchBot", "anthropic-ai", "ClaudeBot"]
 _ROBOTS_DISALLOW_RE = re.compile(r"^Disallow\s*:\s*(.+)$", re.IGNORECASE)
 _USERAGENT_RE = re.compile(r"^User-agent\s*:\s*(.+)$", re.IGNORECASE)
+
+# Module-level cache shared across all instances and heuristics
+_ROBOTS_CACHE: dict[str, bool] = {}
+
+
+def fetch_robots_permitted(url: str) -> bool:
+    """
+    Fetch and parse robots.txt for the domain of url.
+    Returns True if AI crawlers are permitted, False if blocked.
+    Results are cached per domain to avoid repeated network calls.
+    On network error, defaults to True (assume crawlable).
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+        domain = f"{parsed.scheme}://{parsed.netloc}"
+    except Exception:
+        return True
+
+    if domain in _ROBOTS_CACHE:
+        return _ROBOTS_CACHE[domain]
+
+    robots_url = f"{domain}/robots.txt"
+    try:
+        with urllib.request.urlopen(robots_url, timeout=5) as resp:
+            content = resp.read().decode("utf-8", errors="replace")
+        result = _parse_robots_content(content)
+    except Exception:
+        result = True  # network error → assume crawlable
+
+    _ROBOTS_CACHE[domain] = result
+    logger.debug("robots.txt %s → %s", domain, "allowed" if result else "blocked")
+    return result
+
+
+def _parse_robots_content(content: str) -> bool:
+    """
+    Return True if none of the known AI bots are globally disallowed.
+
+    Handles both single and grouped User-agent blocks, e.g.:
+        User-agent: GPTBot       User-agent: GPTBot
+        Disallow: /              User-agent: ClaudeBot
+                                 Disallow: /
+
+    Consecutive User-agent lines are accumulated into one group; a blank
+    line resets the group (standard robots.txt group separator).
+    """
+    lines = content.splitlines()
+    current_agents: list[str] = []
+    last_was_ua = False
+    for line in lines:
+        line = line.strip()
+        if not line:  # blank line = group separator
+            current_agents = []
+            last_was_ua = False
+            continue
+        ua_match = _USERAGENT_RE.match(line)
+        if ua_match:
+            if not last_was_ua:
+                current_agents = []  # start of a new group
+            current_agents.append(ua_match.group(1).strip())
+            last_was_ua = True
+            continue
+        last_was_ua = False
+        dis_match = _ROBOTS_DISALLOW_RE.match(line)
+        if dis_match:
+            path = dis_match.group(1).strip()
+            if path in ("/", "*"):
+                for agent in current_agents:
+                    for bot in _AI_BOTS:
+                        if bot.lower() in agent.lower() or agent == "*":
+                            return False
+    return True
 
 
 @dataclass(order=True)
@@ -80,17 +158,15 @@ class CrawlPrioritizer:
         self,
         graph: dict[str, list[str]],
         pageranks: dict[str, float],
-        w_pr: float = 0.6,
-        w_out: float = 0.2,
-        w_robots: float = 0.2,
+        w_pr: float = 0.75,
+        w_out: float = 0.25,
         check_robots: bool = False,
     ) -> None:
         self.graph = graph
         self.pageranks = pageranks
         self.w_pr = w_pr
         self.w_out = w_out
-        self.w_robots = w_robots
-        self.check_robots = False
+        self.check_robots = check_robots
         self._robots_cache: dict[str, bool] = {}  # domain -> True if crawlable
 
     # ------------------------------------------------------------------
@@ -98,30 +174,34 @@ class CrawlPrioritizer:
     # ------------------------------------------------------------------
 
     def top_k(self, k: int = 10) -> list[CrawlCandidate]:
-        """Return the top-k URLs to crawl next, ranked by composite priority."""
+        """Return the top-k URLs to crawl next, ranked by composite priority.
+
+        Two-stage strategy:
+          Stage 1 — Hard gate: discard URLs blocked by robots.txt for AI crawlers.
+          Stage 2 — Rank:      among permitted pages, score by PageRank + out-degree.
+        """
         urls = list(self.graph.keys())
         if not urls:
             return []
 
-        pr_arr = np.array([self.pageranks.get(u, 0.0) for u in urls], dtype=float)
-        od_arr = np.array([len(self.graph.get(u, [])) for u in urls], dtype=float)
+        # ── Stage 1: hard robots.txt gate ────────────────────────────────────
+        if self.check_robots:
+            permitted = [u for u in urls if self._is_crawlable(u)]
+        else:
+            permitted = urls  # assume all crawlable if not checking
+
+        if not permitted:
+            logger.warning("All URLs blocked by robots.txt — no candidates to return.")
+            return []
+
+        # ── Stage 2: rank permitted URLs by PageRank + out-degree ────────────
+        pr_arr = np.array([self.pageranks.get(u, 0.0) for u in permitted], dtype=float)
+        od_arr = np.array([len(self.graph.get(u, [])) for u in permitted], dtype=float)
 
         pr_norm = self._normalise(pr_arr)
         od_norm = self._normalise(od_arr)
 
-        # Build robots signal
-        robots_arr = np.zeros(len(urls))
-        if self.check_robots:
-            for i, url in enumerate(urls):
-                robots_arr[i] = 1.0 if self._is_crawlable(url) else 0.0
-        else:
-            robots_arr[:] = 1.0  # assume all crawlable if not checking
-
-        priority_arr = (
-            self.w_pr * pr_norm
-            + self.w_out * od_norm
-            + self.w_robots * robots_arr
-        )
+        priority_arr = self.w_pr * pr_norm + self.w_out * od_norm
 
         # Use a heap to get top-k efficiently (O(N log k))
         heap: list[tuple[float, int]] = []
@@ -135,15 +215,15 @@ class CrawlPrioritizer:
 
         candidates = []
         for i in top_indices:
-            url = urls[i]
-            reason = self._explain(pr_norm[i], od_norm[i], robots_arr[i])
+            url = permitted[i]
+            reason = self._explain(pr_norm[i], od_norm[i])
             candidates.append(
                 CrawlCandidate(
                     priority=float(priority_arr[i]),
                     url=url,
                     pagerank=float(pr_arr[i]),
                     out_degree=int(od_arr[i]),
-                    robots_ok=bool(robots_arr[i] > 0),
+                    robots_ok=True,  # all candidates passed the gate
                     reason=reason,
                 )
             )
@@ -154,9 +234,12 @@ class CrawlPrioritizer:
         return (
             "Crawl Priority Policy\n"
             "=====================\n"
-            f"  PageRank weight  : {self.w_pr:.0%}  — authoritative pages first\n"
-            f"  Out-degree weight: {self.w_out:.0%}  — hubs surface more new URLs\n"
-            f"  Robots bonus     : {self.w_robots:.0%}  — prefer consent-cleared pages\n\n"
+            "  Stage 1 — Hard gate : robots.txt must permit AI crawlers\n"
+            "              (GPTBot, CCBot, anthropic-ai).  Blocked pages are\n"
+            "              excluded entirely regardless of PageRank.\n\n"
+            f"  Stage 2 — Ranking  (among permitted pages only):\n"
+            f"    PageRank weight  : {self.w_pr:.0%}  — authoritative pages first\n"
+            f"    Out-degree weight: {self.w_out:.0%}  — hubs surface more new URLs\n\n"
             "Why high-PageRank pages yield better AI training data:\n"
             "  PageRank is a proxy for editorial endorsement — many trusted\n"
             "  sites must have found a page worth linking to.  High-PR pages\n"
@@ -165,11 +248,10 @@ class CrawlPrioritizer:
             "  These properties directly correlate with training data quality\n"
             "  for generative models.\n\n"
             "Robots.txt heuristic:\n"
-            "  Pages whose domain does NOT block known AI bots (GPTBot,\n"
-            "  CCBot, anthropic-ai) in robots.txt are more likely to have\n"
-            "  consented to AI training use.  Combining PageRank authority\n"
-            "  with robots-crawlability surfaces high-quality, consent-cleared\n"
-            "  training pages."
+            "  robots.txt is treated as a hard filter, not a soft bonus.\n"
+            "  Only pages that explicitly permit AI crawlers are considered.\n"
+            "  This ensures all returned candidates are consent-cleared,\n"
+            "  then ranked purely by content quality signals."
         )
 
     # ------------------------------------------------------------------
@@ -192,55 +274,17 @@ class CrawlPrioritizer:
         except Exception:
             return True  # assume crawlable on parse error
 
-        if domain in self._robots_cache:
-            return self._robots_cache[domain]
-
-        robots_url = f"{domain}/robots.txt"
-        try:
-            import urllib.request
-            with urllib.request.urlopen(robots_url, timeout=5) as resp:
-                content = resp.read().decode("utf-8", errors="replace")
-            result = self._parse_robots(content)
-        except Exception:
-            result = True  # network error → assume crawlable
-
-        self._robots_cache[domain] = result
-        return result
+        if domain in _ROBOTS_CACHE:
+            return _ROBOTS_CACHE[domain]
+        return fetch_robots_permitted(url)
 
     @staticmethod
-    def _parse_robots(content: str) -> bool:
-        """
-        Return True if none of the known AI bots are globally disallowed.
-
-        Simple parser: looks for User-agent: <bot> followed by Disallow: /
-        """
-        lines = content.splitlines()
-        current_agents: list[str] = []
-        for line in lines:
-            line = line.strip()
-            ua_match = _USERAGENT_RE.match(line)
-            if ua_match:
-                current_agents = [ua_match.group(1).strip()]
-                continue
-            dis_match = _ROBOTS_DISALLOW_RE.match(line)
-            if dis_match:
-                path = dis_match.group(1).strip()
-                if path in ("/", "*"):
-                    for agent in current_agents:
-                        for bot in _AI_BOTS:
-                            if bot.lower() in agent.lower() or agent == "*":
-                                return False  # globally disallowed
-        return True
-
-    @staticmethod
-    def _explain(pr_norm: float, od_norm: float, robots_ok: float) -> str:
-        parts = []
+    def _explain(pr_norm: float, od_norm: float) -> str:
+        parts = ["robots.txt permits AI crawlers"]  # all candidates passed the gate
         if pr_norm > 0.7:
             parts.append("very high PageRank authority")
         elif pr_norm > 0.4:
             parts.append("moderate PageRank authority")
         if od_norm > 0.6:
             parts.append("high out-degree hub")
-        if robots_ok:
-            parts.append("robots.txt allows AI crawlers")
-        return "; ".join(parts) if parts else "low priority"
+        return "; ".join(parts)

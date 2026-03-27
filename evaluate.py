@@ -7,9 +7,9 @@ the GraphRAG Marie Curie demo, then publishes all figures and tables
 to results/.
 
 Usage:
-    python3.11 evaluate.py                         # uses data/web-Google.txt
-    python3.11 evaluate.py --data data/web-Google.txt
-    python3.11 evaluate.py --small                 # toy graph only (no large dataset needed)
+    python3.11 evaluate.py                              # uses data/web-Google-10k.txt
+    python3.11 evaluate.py --data data/web-Google.txt   # full graph
+    python3.11 evaluate.py --small                      # toy graph only (no dataset needed)
 """
 from __future__ import annotations
 
@@ -122,7 +122,7 @@ def evaluate_pagerank(data_path: str, reporter: MetricsReporter, use_small: bool
     r_iterative = results_by_p[0.15]
     p_ref = 0.15
 
-    # Analytical comparison (small graphs only)
+    # Analytical comparison
     analytical = AnalyticalPageRank(A, dangling, p=p_ref)
     r_analytical = analytical.compute()
     if r_analytical is not None:
@@ -134,10 +134,11 @@ def evaluate_pagerank(data_path: str, reporter: MetricsReporter, use_small: bool
         logger.info("L1 error: %.3e | Top-20 overlap: %d/20",
                     correctness.l1_error, ranking.top_k_overlap * 20)
     else:
-        logger.info("Graph too large for analytical comparison; skipping correctness/ranking.")
-        # Use two different p values as proxy for ranking comparison
+        logger.info("Graph too large for analytical comparison; using p=0.10 as proxy.")
         r_a = results_by_p[0.15]
         r_b = results_by_p[0.10]
+        correctness = CorrectnessMetrics(r_a, r_b, p_ref, N).compute()
+        reporter.add_correctness(correctness, r_a, r_b, fallback=True)
         ranking = RankingMetrics(r_a, r_b, k=20).compute()
         reporter.add_ranking(ranking)
 
@@ -259,7 +260,7 @@ def evaluate_graphrag(reporter: MetricsReporter):
 
 def main():
     parser = argparse.ArgumentParser(description="PageRank Metrics Evaluation")
-    parser.add_argument("--data", default="data/web-Google.txt")
+    parser.add_argument("--data", default="data/web-Google-10k.txt")
     parser.add_argument("--small", action="store_true",
                         help="Use toy 6-node graph (no dataset needed)")
     parser.add_argument("--out", default="results", help="Output directory")

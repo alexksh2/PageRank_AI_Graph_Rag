@@ -164,11 +164,10 @@ class ExperimentSuite:
 
         full = ndcg_for_weights()
         ablations = {
-            "w/o PageRank":       ndcg_for_weights(w_pr=0.0),
-            "w/o Domain Rep":     ndcg_for_weights(w_rep=0.0),
-            "w/o TLD Quality":    ndcg_for_weights(w_tld=0.0),
-            "w/o URL Depth":      ndcg_for_weights(w_dep=0.0),
-            "w/o Robots Bonus":   ndcg_for_weights(w_rob=0.0),
+            "w/o PageRank":    ndcg_for_weights(w_pr=0.0),
+            "w/o Domain Rep":  ndcg_for_weights(w_rep=0.0),
+            "w/o TLD Quality": ndcg_for_weights(w_tld=0.0),
+            "w/o URL Depth":   ndcg_for_weights(w_dep=0.0),
         }
         return AblationResult(full_ndcg=full, ablations=ablations)
 
@@ -242,7 +241,7 @@ class ExperimentSuite:
         h = QualityWeightedAuthority(self.graph, self.pageranks)
         ranked = h.rank()
 
-        signals = ["pr_norm", "rep_norm", "tld_norm", "dep_norm", "rob_norm"]
+        signals = ["pr_norm", "rep_norm", "tld_norm", "dep_norm"]
         mat = np.zeros((len(signals), len(signals)))
         vecs = {s: np.array([r.signals.get(s, 0.0) for r in ranked]) for s in signals}
 
@@ -251,7 +250,7 @@ class ExperimentSuite:
                 rho, _ = stats.spearmanr(vecs[si], vecs[sj])
                 mat[i, j] = float(rho)
 
-        labels = ["PageRank", "Domain Rep", "TLD Quality", "URL Depth", "Robots"]
+        labels = ["PageRank", "Domain Rep", "TLD Quality", "URL Depth"]
         return CorrelationResult(signal_names=labels, corr_matrix=mat)
 
     # ── EXP-4: Domain Diversity ───────────────────────────────────────────────

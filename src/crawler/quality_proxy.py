@@ -70,19 +70,20 @@ DOMAIN_REPUTATION: dict[str, float] = {
     # Quality news
     "reuters.com":            0.80,
     "bbc.co.uk":              0.80,
-    "nytimes.com":            0.72,
     "theguardian.com":        0.72,
     # Moderate quality
     "medium.com":             0.45,
     "substack.com":           0.42,
     "github.com":             0.70,
     "stackoverflow.com":      0.72,
-    # Low quality / spam
-    "spammy-seo.com":         0.02,
-    "click-farm.net":         0.01,
-    "scraped-content.biz":    0.01,
-    "ad-network.io":          0.02,
-    "keyword-stuffed.org":    0.05,
+    # Quality news (verified to block AI crawlers in robots.txt)
+    "nytimes.com":            0.72,
+    "cnn.com":                0.70,
+    "washingtonpost.com":     0.78,
+    # Developer / open-source (allow AI crawlers in robots.txt)
+    "python.org":             0.85,
+    "docs.python.org":        0.85,
+    "news.ycombinator.com":   0.65,
 }
 
 # ── TLD quality table ─────────────────────────────────────────────────────────
