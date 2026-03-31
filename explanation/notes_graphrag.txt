@@ -466,3 +466,30 @@ Key Details:
 Output: A list of RetrievalResult objects, sorted by PageRank score descending. Each includes relevance score, rank, entity type, and hop distance for interpretability.
 Example Output: [RetrievalResult(entity_name="radiotherapy", score=0.25, rank=1, entity_type="concept", hop_distance=2), ...]
 Integration: This feeds into higher-level GraphRAG pipelines for query answering or reasoning.
+
+
+⏺ COO stands for Coordinate format — it's a way to represent a sparse matrix as three parallel
+  arrays:                                                                                          
+                                    
+  ┌───────┬─────────────────────────────────────┐
+  │ array │               meaning               │                                                    
+  ├───────┼─────────────────────────────────────┤
+  │ rows  │ row index of each non-zero entry    │                                                    
+  ├───────┼─────────────────────────────────────┤
+  │ cols  │ column index of each non-zero entry │                                                    
+  ├───────┼─────────────────────────────────────┤
+  │ data  │ value at that (row, col) position   │                                                    
+  └───────┴─────────────────────────────────────┘                                                    
+  
+  So for each edge src -> dst, it stores:                                                            
+                  
+  A[dst, src] = 1 / out_degree[src]                                                                  
+                                                                                                     
+  meaning "what fraction of src's rank flows to dst". The matrix is column-stochastic: each column   
+  src sums to 1 because all of src's outgoing edges share its weight equally.                        
+                                                                                                     
+  SciPy accepts this COO format directly and converts it to CSR internally:                          
+  sp.csr_matrix((data, (rows, cols)), shape=(N, N))
+                                                                                                     
+  CSR (Compressed Sparse Row) is then efficient for the matrix-vector multiply A @ v used in PageRank
+   power iteration.     
