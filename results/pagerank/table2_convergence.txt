@@ -10,4 +10,4 @@ Table 2 — Convergence Metrics
   Iters to <1e-3          :  61
   Iters to <1e-6          :  190
   Iters to <1e-8          :  279
-  Elapsed (s)             :  4.93453
+  Elapsed (s)             :  4.57971

@@ -213,6 +213,7 @@ h1 {
   margin: 24px 0 10px 0;
   padding-bottom: 8px;
   border-bottom: 2px solid #0a1628;
+  page-break-after: avoid;
 }
 
 h2 {
@@ -224,6 +225,7 @@ h2 {
   padding: 6px 10px 6px 14px;
   border-left: 4px solid #c8a951;
   background: #f7f4ee;
+  page-break-after: avoid;
 }
 
 h3 {
@@ -236,6 +238,7 @@ h3 {
   letter-spacing: 0.4px;
   border-bottom: 1px solid #d0d7de;
   padding-bottom: 3px;
+  page-break-after: avoid;
 }
 
 h4 {
@@ -244,6 +247,7 @@ h4 {
   font-weight: bold;
   color: #1a3a5c;
   margin: 10px 0 4px 0;
+  page-break-after: avoid;
 }
 
 /* ── BODY TEXT ───────────────────────────────────────────────────────────── */
@@ -273,7 +277,6 @@ pre {
   border-radius: 4px;
   padding: 11px 14px;
   margin: 9px 0;
-  page-break-inside: avoid;
   border-left: 3px solid #c8a951;
 }
 pre code {

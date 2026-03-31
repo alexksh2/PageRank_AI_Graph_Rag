@@ -201,17 +201,16 @@ PageRank_AI_Graph_Rag/
 
 ```bash
 # Create and activate virtual environment
+# Note: macOS/Homebrew blocks system-wide pip installs (PEP 668).
+# Always use a venv — this also ensures python3 and pip stay in sync.
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install core dependencies
+# Install all dependencies (including markdown and weasyprint for PDF generation)
 pip install -r requirements.txt
-
-# PDF generation uses WeasyPrint which has system-lib conflicts.
-# Install it in a separate venv (one-time setup):
-python3 -m venv /tmp/pdfvenv
-/tmp/pdfvenv/bin/pip install markdown weasyprint
 ```
+
+> **Each new terminal session:** run `source .venv/bin/activate` before executing any scripts.
 
 ### Dataset
 
@@ -633,7 +632,7 @@ All figures use the Goldman Sachs publication palette: Navy `#003366`, Gold `#C9
 python evaluate.py --out results
 
 # Full SNAP dataset (875 k nodes — download first)
-python evaluate.py --data data/web-Google.txt --out results
+python evaluate.py --data data/web-Google-10k.txt --out results
 
 # Toy 6-node graph (no dataset needed)
 python evaluate.py --small --out results
@@ -661,8 +660,8 @@ Output: Top-10 rankings for all 5 heuristics, QWA signal breakdown table, 10 GS-
 ### Generate PDF Report
 
 ```bash
-# Convert README.md to professional PDF (requires /tmp/pdfvenv — see Installation)
-/tmp/pdfvenv/bin/python generate_pdf.py README.md README.pdf
+# Convert README.md to professional PDF (activate .venv first)
+python explanation/generate_pdf.py README.md README.pdf
 ```
 
 ### Run Unit Tests
@@ -701,10 +700,6 @@ The dangling-node correction is performed as a scalar broadcast (`r_new += dangl
 ### Analytical Solve Boundary
 
 The sparse LU factorisation via `scipy.sparse.linalg.spsolve` has fill-in complexity O(N^{1.5}) to O(N²) depending on graph structure. Empirically, the threshold N = 50,000 corresponds to a factorisation time of ~10 s and ~2 GB memory, which is acceptable for development graphs but not production scale. For the SNAP 875 k-node graph, we use two different p-values as a proxy comparison.
-
-### Goldman Sachs Brand Palette
-
-All matplotlib figures use a custom colormap interpolating Navy `#003366` → `#2E86C1` → Gold `#C9A84C` for sequential data. Single-series plots use Navy fill with Gold accent. All axes have no top/right spine. A semi-transparent watermark is placed in the figure footer.
 
 ### Personalised PageRank Seed Encoding
 
