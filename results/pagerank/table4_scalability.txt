@@ -1,0 +1,11 @@
+Table 4 — Scalability Metrics
+============================================================
+  Nodes (N)                    :  875713
+  Edges (nnz)                  :  5105039
+  Iterations                   :  90
+  Total Time (s)               :  1.57
+  Time/Iteration (ms)          :  17.4444
+  Edges/sec                    :  2.92646e+08
+  Peak Memory (MB)             :  28.0264
+  Memory/Edge (bytes)          :  5.48994
+  Scalability Index (µs/edge)  :  0.262509

@@ -149,23 +149,30 @@ PageRank_AI_Graph_Rag/
 ├── skill.md            # PDF generation skill specification
 │
 ├── data/
-│   └── web-Google.txt  # SNAP web-Google dataset (875 k nodes, 5.1 M edges)
+│   ├── web-Google-10k.txt   # SNAP web-Google 10 k-node sample (default)
+│   └── web-Google.txt       # Full SNAP dataset (875 k nodes, 5.1 M edges) — download separately
 │
 ├── results/
-│   ├── fig1_convergence.png
-│   ├── fig2_score_distribution.png
-│   ├── fig3_indegree_vs_pr.png
-│   ├── fig5_p_sweep.png
-│   ├── fig6_top20_nodes.png
-│   ├── fig7_graphrag_hop_scores.png
-│   ├── fig8_graphrag_precision_recall.png
-│   ├── table2_convergence.txt
-│   ├── table2b_convergence_sweep.txt
-│   ├── table3_ranking.txt
-│   ├── table4_scalability.txt
-│   ├── table5_structural.txt
-│   ├── table6_graphrag.txt
-│   └── crawl/
+│   ├── pagerank/                        # PageRank figures and tables
+│   │   ├── fig1_convergence.png
+│   │   ├── fig2_score_distribution.png
+│   │   ├── fig3_indegree_vs_pr.png
+│   │   ├── fig4_p_sweep.png
+│   │   ├── fig5_top20_nodes.png
+│   │   ├── fig6_analytical_vs_iterative.png
+│   │   ├── table1_correctness.txt
+│   │   ├── table2_convergence.txt
+│   │   ├── table2b_convergence_sweep.txt
+│   │   ├── table3_ranking.txt
+│   │   ├── table4_scalability.txt
+│   │   └── table5_structural.txt
+│   │
+│   ├── graphrag/                        # GraphRAG figures and tables
+│   │   ├── fig7_graphrag_hop_scores.png
+│   │   ├── fig8_graphrag_precision_recall.png
+│   │   └── table6_graphrag.txt
+│   │
+│   └── crawl/                           # Crawl heuristic figures
 │       ├── crawl_exp1_ablation.png
 │       ├── crawl_exp2_p_sensitivity.png
 │       ├── crawl_exp3_signal_correlation.png
@@ -187,35 +194,39 @@ PageRank_AI_Graph_Rag/
 
 ### Prerequisites
 
-- Python 3.11+
-- macOS / Linux (no `python` symlink required; use `python3.11` explicitly)
+- Python 3.14+ (tested on 3.14.3) or Python 3.11+
+- macOS / Linux
 
 ### Environment
 
 ```bash
 # Create and activate virtual environment
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 
-# Install scientific computing dependencies
-pip install numpy scipy matplotlib networkx
+# Install core dependencies
+pip install -r requirements.txt
 
-# Install PDF generation dependencies (separate venv to avoid conflicts)
+# PDF generation uses WeasyPrint which has system-lib conflicts.
+# Install it in a separate venv (one-time setup):
 python3 -m venv /tmp/pdfvenv
 /tmp/pdfvenv/bin/pip install markdown weasyprint
 ```
 
 ### Dataset
 
-Download the SNAP web-Google dataset:
+The repository ships a 10 k-node sample at `data/web-Google-10k.txt` (used by default).
+
+To run on the full 875 k-node SNAP graph:
 
 ```bash
 mkdir -p data
 curl -L https://snap.stanford.edu/data/web-Google.txt.gz -o data/web-Google.txt.gz
 gunzip data/web-Google.txt.gz
+# Then pass --data data/web-Google.txt to evaluate.py or main.py
 ```
 
-The file contains 875,713 nodes and 5,105,039 directed edges as a tab-separated edge list with a 4-line comment header.
+The full file contains 875,713 nodes and 5,105,039 directed edges as a tab-separated edge list with a 4-line comment header.
 
 ---
 
@@ -330,7 +341,7 @@ GraphRAG (Graph Retrieval-Augmented Generation) uses Personalised PageRank as it
 
 ### Knowledge Graph: Marie Curie → Medical Imaging
 
-The test knowledge graph contains 45 entity nodes and 48 directed relation edges encoding the causal chain:
+The test knowledge graph contains 30 entity nodes and 47 directed relation edges encoding the causal chain:
 
 ```
 Marie Curie ─discovered─→ radium ─emits─→ gamma_radiation
@@ -592,23 +603,24 @@ All figures use the Goldman Sachs publication palette: Navy `#003366`, Gold `#C9
 
 | Figure | File | Content |
 |--------|------|---------|
-| Fig 1 | `fig1_convergence.png` | L1 residual vs iteration for 8 p-values (navy→gold gradient) |
-| Fig 2 | `fig2_score_distribution.png` | CCDF of PageRank scores (log-log power-law fit) |
-| Fig 3 | `fig3_indegree_vs_pr.png` | Scatter: in-degree vs PR score (Spearman ρ annotated) |
-| Fig 5 | `fig5_p_sweep.png` | Triptych: entropy, Gini, top-1 score vs p |
-| Fig 6 | `fig6_top20_nodes.png` | Horizontal bar: top-20 nodes by PR score |
-| Fig 7 | `fig7_graphrag_hop_scores.png` | Bar: mean PPR score by hop distance from seeds |
-| Fig 8 | `fig8_graphrag_precision_recall.png` | Dual bar: Precision@k and Recall@k for k=1,3,5,10 |
-| EXP-1 | `crawl_exp1_ablation.png` | NDCG drop per ablated signal in QWA |
-| EXP-2 | `crawl_exp2_p_sensitivity.png` | Kendall τ vs teleportation p |
-| EXP-3 | `crawl_exp3_signal_correlation.png` | Spearman ρ heatmap across 5 QWA signals |
-| EXP-4 | `crawl_exp4_domain_diversity.png` | Domain Gini per heuristic at top-k |
-| EXP-5 | `crawl_exp5_quality_curve.png` | Cumulative quality vs crawl steps (H0–H4) |
-| EXP-6 | `crawl_exp6_robots_compliance.png` | Robots compliance rate per heuristic |
-| EXP-7 | `crawl_exp7_structural.png` | PR vs TLD/reputation scatter (QWA rank coloured) |
-| EXP-8 | `crawl_exp8_k_stability.png` | Kendall τ vs k for each heuristic |
-| EXP-9 | `crawl_exp9_topology.png` | Crawl priority vs betweenness centrality |
-| EXP-10 | `crawl_exp10_head_to_head.png` | Head-to-head bar: 5 metrics × 5 heuristics |
+| Fig 1 | `results/pagerank/fig1_convergence.png` | L1 residual vs iteration for 8 p-values (navy→gold gradient) |
+| Fig 2 | `results/pagerank/fig2_score_distribution.png` | CCDF of PageRank scores (log-log power-law fit) |
+| Fig 3 | `results/pagerank/fig3_indegree_vs_pr.png` | Scatter: in-degree vs PR score (Spearman ρ annotated) |
+| Fig 4 | `results/pagerank/fig4_p_sweep.png` | Triptych: entropy, Gini, top-1 score vs p |
+| Fig 5 | `results/pagerank/fig5_top20_nodes.png` | Bar: top-20 nodes by PR score |
+| Fig 6 | `results/pagerank/fig6_analytical_vs_iterative.png` | Scatter + Bland-Altman: analytical vs iterative agreement |
+| Fig 7 | `results/graphrag/fig7_graphrag_hop_scores.png` | Bar: mean PPR score by hop distance from seeds |
+| Fig 8 | `results/graphrag/fig8_graphrag_precision_recall.png` | Dual bar: Precision@k and Recall@k for k=1,3,5,10 |
+| EXP-1 | `results/crawl/crawl_exp1_ablation.png` | NDCG drop per ablated signal in QWA |
+| EXP-2 | `results/crawl/crawl_exp2_p_sensitivity.png` | Kendall τ vs teleportation p |
+| EXP-3 | `results/crawl/crawl_exp3_signal_correlation.png` | Spearman ρ heatmap across 5 QWA signals |
+| EXP-4 | `results/crawl/crawl_exp4_domain_diversity.png` | Domain Gini per heuristic at top-k |
+| EXP-5 | `results/crawl/crawl_exp5_quality_curve.png` | Cumulative quality vs crawl steps (H0–H4) |
+| EXP-6 | `results/crawl/crawl_exp6_robots_compliance.png` | Robots compliance rate per heuristic |
+| EXP-7 | `results/crawl/crawl_exp7_structural.png` | PR vs TLD/reputation scatter (QWA rank coloured) |
+| EXP-8 | `results/crawl/crawl_exp8_k_stability.png` | Kendall τ vs k for each heuristic |
+| EXP-9 | `results/crawl/crawl_exp9_topology.png` | Crawl priority vs betweenness centrality |
+| EXP-10 | `results/crawl/crawl_exp10_head_to_head.png` | Head-to-head bar: 5 metrics × 5 heuristics |
 
 ---
 
@@ -617,39 +629,46 @@ All figures use the Goldman Sachs publication palette: Navy `#003366`, Gold `#C9
 ### Full Evaluation Pipeline
 
 ```bash
-# With SNAP dataset (875 k nodes)
-python3.11 evaluate.py --data data/web-Google.txt --out results
+# Default: 10 k-node sample (bundled in data/)
+python evaluate.py --out results
+
+# Full SNAP dataset (875 k nodes — download first)
+python evaluate.py --data data/web-Google.txt --out results
 
 # Toy 6-node graph (no dataset needed)
-python3.11 evaluate.py --small --out results
+python evaluate.py --small --out results
 ```
 
-Output: 8 figures + 5 tables written to `results/`.
+Output: 6 figures + 6 tables → `results/pagerank/`; 2 figures + 1 table → `results/graphrag/`.
+
+### Four-Experiment Demo
+
+```bash
+python main.py
+```
+
+Runs all four experiments sequentially (toy PageRank, SNAP PageRank, crawl prioritisation, GraphRAG).
 
 ### Crawl Heuristics Demo
 
 ```bash
 # Run all 10 experiments on synthetic 41-node web graph
-python3.11 crawl_demo.py --k 10 --out results/crawl
+python crawl_demo.py --k 10 --out results/crawl
 ```
 
-Output: Top-10 rankings for all 5 heuristics, QWA signal breakdown table, 10 GS-styled figures.
+Output: Top-10 rankings for all 5 heuristics, QWA signal breakdown table, 10 GS-styled figures → `results/crawl/`.
 
 ### Generate PDF Report
 
 ```bash
-# Install dependencies (once)
-python3 -m venv /tmp/pdfvenv
-/tmp/pdfvenv/bin/pip install markdown weasyprint
-
-# Convert README.md to professional PDF
-/tmp/pdfvenv/bin/python3 generate_pdf.py README.md README.pdf
+# Convert README.md to professional PDF (requires /tmp/pdfvenv — see Installation)
+/tmp/pdfvenv/bin/python generate_pdf.py README.md README.pdf
 ```
 
 ### Run Unit Tests
 
 ```bash
-python3.11 -m pytest tests/ -v
+python -m pytest tests/ -v
 ```
 
 Expected: 30 tests pass across `TestPageRankEngine`, `TestAnalyticalPageRank`, `TestKnowledgeGraph`, `TestPageRankRetrieval`, `TestGraphRAGQueryEngine`, `TestCrawlPrioritizer`.

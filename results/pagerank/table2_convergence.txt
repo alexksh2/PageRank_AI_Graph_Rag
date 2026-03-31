@@ -1,0 +1,13 @@
+Table 2 — Convergence Metrics
+============================================================
+  Iterations              :  279
+  Converged               :  True
+  Final Residual          :  9.69196e-09
+  Theoretical Rate (1-p)  :  0.95
+  Empirical Rate          :  0.946483
+  Rate Ratio (emp/th)     :  0.996298
+  AUC Residual            :  2.04573
+  Iters to <1e-3          :  61
+  Iters to <1e-6          :  190
+  Iters to <1e-8          :  279
+  Elapsed (s)             :  4.93453

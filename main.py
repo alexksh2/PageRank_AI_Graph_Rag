@@ -185,7 +185,7 @@ def exp2_large_scale(data_path: str, p: float = 0.15):
     if not path.exists():
         print(f"\n[WARNING] Dataset not found at '{data_path}'.")
         print("  Please download it:")
-        print("    wget https://hunglvosu.github.io/posts/2020/07/PA3/web-Google_10k.txt -P data/")
+        print("    wget https://hunglvosu.github.io/posts/2020/07/PA3/web-Google_10k.txt -O data/web-Google-10k.txt")
         print("  Skipping experiment 2.")
         return
 
@@ -460,7 +460,7 @@ def parse_args():
         help="Run only experiment N (default: run all)"
     )
     parser.add_argument(
-        "--data", type=str, default="data/web-Google_10k.txt",
+        "--data", type=str, default="data/web-Google-10k.txt",
         help="Path to SNAP web-Google edge-list file"
     )
     parser.add_argument(

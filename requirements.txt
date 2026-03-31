@@ -1,8 +1,10 @@
+# Core scientific computing (used by src/ and evaluate.py)
 numpy>=1.24.0
 scipy>=1.11.0
-networkx>=3.1
 matplotlib>=3.7.0
-pandas>=2.0.0
-tqdm>=4.65.0
-requests>=2.31.0
-scikit-learn>=1.3.0
+
+# PDF report generation (generate_pdf.py)
+# Install in a separate venv to avoid WeasyPrint system-lib conflicts:
+#   python3 -m venv /tmp/pdfvenv && /tmp/pdfvenv/bin/pip install markdown weasyprint
+markdown>=3.4.0
+weasyprint>=57.0

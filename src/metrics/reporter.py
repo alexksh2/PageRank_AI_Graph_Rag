@@ -163,6 +163,10 @@ class MetricsReporter:
     def __init__(self, output_dir: str = "results"):
         self.out = Path(output_dir)
         self.out.mkdir(parents=True, exist_ok=True)
+        self.out_pr = self.out / "pagerank"
+        self.out_pr.mkdir(parents=True, exist_ok=True)
+        self.out_gr = self.out / "graphrag"
+        self.out_gr.mkdir(parents=True, exist_ok=True)
 
         self._correctness = None
         self._convergence_sweep: dict = {}
@@ -237,24 +241,24 @@ class MetricsReporter:
     def _write_tables(self) -> list[str]:
         created = []
         tables = [
-            ("table1_correctness.txt",  "Table 1 — Correctness Metrics",       self._correctness),
+            ("table1_correctness.txt",  "Table 1 — Correctness Metrics",       self._correctness,  self.out_pr),
             ("table2_convergence.txt",  "Table 2 — Convergence Metrics",
-             next(iter(self._convergence_sweep.values())) if self._convergence_sweep else None),
-            ("table3_ranking.txt",      "Table 3 — Ranking Quality Metrics",   self._ranking),
-            ("table4_scalability.txt",  "Table 4 — Scalability Metrics",       self._scalability),
-            ("table5_structural.txt",   "Table 5 — Graph Structural Metrics",  self._structural),
-            ("table6_graphrag.txt",     "Table 6 — GraphRAG Retrieval Metrics", self._graphrag),
+             next(iter(self._convergence_sweep.values())) if self._convergence_sweep else None, self.out_pr),
+            ("table3_ranking.txt",      "Table 3 — Ranking Quality Metrics",   self._ranking,      self.out_pr),
+            ("table4_scalability.txt",  "Table 4 — Scalability Metrics",       self._scalability,  self.out_pr),
+            ("table5_structural.txt",   "Table 5 — Graph Structural Metrics",  self._structural,   self.out_pr),
+            ("table6_graphrag.txt",     "Table 6 — GraphRAG Retrieval Metrics", self._graphrag,    self.out_gr),
         ]
-        for fname, title, result in tables:
+        for fname, title, result, dest in tables:
             if result is None:
                 continue
-            path = self.out / fname
+            path = dest / fname
             with open(path, "w", encoding="utf-8") as f:
                 f.write(self._format_table(title, result.as_dict()))
             created.append(str(path))
             logger.info("Written: %s", path)
         if len(self._convergence_sweep) > 1:
-            path = self.out / "table2b_convergence_sweep.txt"
+            path = self.out_pr / "table2b_convergence_sweep.txt"
             with open(path, "w", encoding="utf-8") as f:
                 f.write(self._format_convergence_sweep_table())
             created.append(str(path))
@@ -320,7 +324,7 @@ class MetricsReporter:
         _gs_spine(ax)
         _gs_watermark(fig)
         fig.tight_layout()
-        path = str(self.out / "fig1_convergence.png")
+        path = str(self.out_pr / "fig1_convergence.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -362,7 +366,7 @@ class MetricsReporter:
         _gs_spine(ax)
         _gs_watermark(fig)
         fig.tight_layout()
-        path = str(self.out / "fig2_score_distribution.png")
+        path = str(self.out_pr / "fig2_score_distribution.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -404,7 +408,7 @@ class MetricsReporter:
         _gs_spine(ax)
         _gs_watermark(fig)
         fig.tight_layout()
-        path = str(self.out / "fig3_indegree_vs_pr.png")
+        path = str(self.out_pr / "fig3_indegree_vs_pr.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -463,7 +467,7 @@ class MetricsReporter:
 
         _gs_watermark(fig)
         fig.tight_layout(rect=[0, 0, 1, 0.94])
-        path = str(self.out / "fig6_analytical_vs_iterative.png")
+        path = str(self.out_pr / "fig6_analytical_vs_iterative.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -519,7 +523,7 @@ class MetricsReporter:
 
         _gs_watermark(fig)
         fig.tight_layout(rect=[0, 0, 1, 0.93])
-        path = str(self.out / "fig4_p_sweep.png")
+        path = str(self.out_pr / "fig4_p_sweep.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -565,7 +569,7 @@ class MetricsReporter:
         _gs_spine(ax)
         _gs_watermark(fig)
         fig.tight_layout()
-        path = str(self.out / "fig5_top20_nodes.png")
+        path = str(self.out_pr / "fig5_top20_nodes.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -631,7 +635,7 @@ class MetricsReporter:
 
         _gs_watermark(fig)
         fig.tight_layout(rect=[0, 0, 1, 0.93])
-        path = str(self.out / "fig7_graphrag_hop_scores.png")
+        path = str(self.out_gr / "fig7_graphrag_hop_scores.png")
         fig.savefig(path)
         plt.close(fig)
         return path
@@ -696,7 +700,7 @@ class MetricsReporter:
 
         _gs_watermark(fig)
         fig.tight_layout(rect=[0, 0, 1, 0.93])
-        path = str(self.out / "fig8_graphrag_precision_recall.png")
+        path = str(self.out_gr / "fig8_graphrag_precision_recall.png")
         fig.savefig(path)
         plt.close(fig)
         return path
